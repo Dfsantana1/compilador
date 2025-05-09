@@ -7,6 +7,7 @@ class CodeGenerator:
         self.variables = {}  # Variable to register mapping
         self.registers = ['t0', 't1', 't2', 't3', 't4', 't5', 't6']
         self.used_registers = set()
+        self.stack_offset = 0
 
     def indent(self):
         self.indent_level += 1
@@ -31,54 +32,51 @@ class CodeGenerator:
             self.used_registers.remove(reg)
 
     def write(self, line):
-        self.output.append('    ' * self.indent_level + line)
+        # Si es una instrucción (no un label o comentario), formatear con tabs
+        if line.strip() and not line.strip().endswith(':'):
+            # Separar la instrucción y el comentario
+            parts = line.split('#')
+            instr = parts[0].strip()
+            comment = '#' + parts[1] if len(parts) > 1 else ''
+            
+            # Formatear la instrucción con tabs después de las comas
+            instr_parts = instr.split(',')
+            formatted_instr = instr_parts[0].strip()
+            for part in instr_parts[1:]:
+                formatted_instr += ',\t' + part.strip()
+            
+            # Reconstruir la línea con el comentario
+            line = formatted_instr + ('\t' + comment if comment else '')
+        
+        self.output.append(line)
 
     def generate(self, ast):
-        # Add necessary directives for RISC-V
-        self.write('.option nopic')
-        self.write('.attribute arch, "rv64i2p0_m2p0_a2p0_f2p0_d2p0"')
-        self.write('.attribute unaligned_access, 0')
-        self.write('.attribute stack_align, 16')
-        self.write('')
-        self.write('.section .text')
-        self.write('.globl main')
-        self.write('')
-        
-        # Generate all non-main functions first
+        # Generate all functions
         for declaration in ast[1]:
-            if declaration[0] == 'fun_declaration' and declaration[2] != 'main':
+            if declaration[0] == 'fun_declaration':
                 self.generate_fun_declaration(declaration)
-        
-        # Generate main function last
-        for declaration in ast[1]:
-            if declaration[0] == 'fun_declaration' and declaration[2] == 'main':
-                self.generate_fun_declaration(declaration)
-                break  # Only generate main once
         
         return '\n'.join(self.output)
 
-    def generate_declaration(self, declaration):
-        if declaration[0] == 'var_declaration':
-            self.generate_var_declaration(declaration)
-        elif declaration[0] == 'var_declaration_init':
-            self.generate_var_declaration_init(declaration)
-        elif declaration[0] == 'fun_declaration':
-            self.generate_fun_declaration(declaration)
-
-    def generate_var_declaration(self, declaration):
-        var_type = declaration[1]
-        var_name = declaration[2]
-        self.variables[var_name] = self.get_register()
-        self.write(f"# Variable declaration: {var_type} {var_name}")
-
-    def generate_var_declaration_init(self, declaration):
-        var_type = declaration[1]
-        var_name = declaration[2]
-        init_expr = declaration[3]
-        reg = self.get_register()
-        self.variables[var_name] = reg
-        self.write(f"# Variable declaration with init: {var_type} {var_name}")
-        self.generate_expression(init_expr, reg)
+    def reg_name(self, reg):
+        # Convert register names to x-numbers
+        reg_map = {
+            'zero': 'x0',
+            'ra': 'x1',
+            'sp': 'x2',
+            's0': 'x8',
+            's1': 'x9',
+            'a0': 'x10',
+            'a1': 'x11',
+            't0': 'x5',
+            't1': 'x6',
+            't2': 'x7',
+            't3': 'x12',
+            't4': 'x13',
+            't5': 'x14',
+            't6': 'x15'
+        }
+        return reg_map.get(reg, reg)
 
     def generate_fun_declaration(self, declaration):
         fun_type = declaration[1]
@@ -87,53 +85,38 @@ class CodeGenerator:
         body = declaration[4]
         
         self.current_function = fun_name
-        self.write(f"\n{fun_name}:")
-        self.indent()
+        self.write(f"{fun_name.upper()}:")
         
-        # Function prologue
-        self.write("addi sp, sp, -32")  # Space for ra, s0, s1
-        self.write("sd ra, 24(sp)")
-        self.write("sd s0, 16(sp)")
-        self.write("sd s1, 8(sp)")
+        # Calculate stack size needed for this function
+        self.stack_offset = 0
+        for var in self.variables.values():
+            self.stack_offset += 8  # Each variable takes 8 bytes
         
-        if fun_name == 'fibonacci':
-            # Fibonacci specific implementation
-            self.write("mv s0, a0")      # Save n in s0
-            
-            # Check if n <= 1
-            self.write("li t0, 1")
-            self.write("ble s0, t0, fibonacci_base")
-            
-            # Recursive case: fibonacci(n-1)
-            self.write("addi a0, s0, -1")
-            self.write("call fibonacci")
-            self.write("mv s1, a0")      # Save fibonacci(n-1)
-            
-            # Recursive case: fibonacci(n-2)
-            self.write("addi a0, s0, -2")
-            self.write("call fibonacci")
-            
-            # Add results
-            self.write("add a0, a0, s1")
-            self.write("j fibonacci_end")
-            
-            # Base case
-            self.write("fibonacci_base:")
-            self.write("mv a0, s0")      # Return n
-            
-            self.write("fibonacci_end:")
-        else:
-            # Generate regular function body
-            self.generate_compound_stmt(body)
+        # Add space for saved registers
+        self.stack_offset += 40  # Space for ra, s0-s1, a0-a1
         
-        # Function epilogue
-        self.write("ld ra, 24(sp)")
-        self.write("ld s0, 16(sp)")
-        self.write("ld s1, 8(sp)")
-        self.write("addi sp, sp, 32")
-        self.write("ret")
+        # Prologue
+        self.write(f"addi\tx2,\tx2,\t-{self.stack_offset}\t# Reservar espacio en la pila")
+        self.write("sd\tx1,\t32(x2)\t# Guardar RA")
+        self.write("sd\tx8,\t24(x2)\t# Guardar s0")
+        self.write("sd\tx9,\t16(x2)\t# Guardar s1")
+        self.write("sd\tx10,\t8(x2)\t# Guardar a0")
+        self.write("sd\tx11,\t0(x2)\t# Guardar a1")
+        self.write("")
         
-        self.dedent()
+        # Generate function body
+        self.generate_compound_stmt(body)
+        
+        # Epilogue
+        self.write("")
+        self.write(f"{fun_name.upper()}_END:")
+        self.write("ld\tx1,\t32(x2)\t# Restaurar RA")
+        self.write("ld\tx8,\t24(x2)\t# Restaurar s0")
+        self.write("ld\tx9,\t16(x2)\t# Restaurar s1")
+        self.write("ld\tx10,\t8(x2)\t# Restaurar a0")
+        self.write("ld\tx11,\t0(x2)\t# Restaurar a1")
+        self.write(f"addi\tx2,\tx2,\t{self.stack_offset}")
+        self.write("jalr\tx0,\t0(x1)\t# Retornar")
 
     def generate_compound_stmt(self, stmt):
         if stmt[0] != 'compound_stmt':
@@ -144,208 +127,157 @@ class CodeGenerator:
             self.generate_statement(statement)
 
     def generate_statement(self, stmt):
-        if stmt[0] == 'expression_stmt':
-            if len(stmt) > 1:
-                reg = self.get_register()
-                self.generate_expression(stmt[1], reg)
-                self.free_register(reg)
-        elif stmt[0] == 'return_stmt':
-            if stmt[1] is None:
-                self.write("li a0, 0")
-            else:
-                reg = self.get_register()
-                self.generate_expression(stmt[1], reg)
-                self.write(f"mv a0, {reg}")
-                self.free_register(reg)
-        elif stmt[0] == 'if_stmt':
-            self.generate_if_stmt(stmt)
-        elif stmt[0] == 'if_else_stmt':
-            self.generate_if_else_stmt(stmt)
-        elif stmt[0] == 'while_stmt':
-            self.generate_while_stmt(stmt)
-        elif stmt[0] == 'for_stmt':
-            self.generate_for_stmt(stmt)
+        stmt_type = stmt[0]
+        
+        if stmt_type == 'return':
+            expr = stmt[1]
+            if expr:
+                self.generate_expr(expr)
+            self.write("jal\tx0,\t" + self.current_function.upper() + "_END")
+            
+        elif stmt_type == 'if':
+            condition = stmt[1]
+            then_stmt = stmt[2]
+            else_stmt = stmt[3] if len(stmt) > 3 else None
+            
+            # Generate condition
+            self.generate_expr(condition)
+            self.write("beq\tx10,\tx0,\t" + self.current_function.upper() + "_ELSE")
+            
+            # Generate then statement
+            self.generate_statement(then_stmt)
+            if else_stmt:
+                self.write("jal\tx0,\t" + self.current_function.upper() + "_END")
+                self.write(self.current_function.upper() + "_ELSE:")
+                self.generate_statement(else_stmt)
+            
+        elif stmt_type == 'while':
+            condition = stmt[1]
+            body = stmt[2]
+            
+            self.write(self.current_function.upper() + "_WHILE:")
+            self.generate_expr(condition)
+            self.write("beq\tx10,\tx0,\t" + self.current_function.upper() + "_END")
+            self.generate_statement(body)
+            self.write("jal\tx0,\t" + self.current_function.upper() + "_WHILE")
+            
+        elif stmt_type == 'compound':
+            self.generate_compound_stmt(stmt)
+            
+        elif stmt_type == 'expr':
+            self.generate_expr(stmt[1])
+            
+        elif stmt_type == 'for':
+            init = stmt[1]
+            condition = stmt[2]
+            update = stmt[3]
+            body = stmt[4]
+            
+            # Generate initialization
+            if init:
+                self.generate_statement(init)
+            
+            self.write(self.current_function.upper() + "_FOR:")
+            # Generate condition
+            self.generate_expr(condition)
+            self.write("beq\tx10,\tx0,\t" + self.current_function.upper() + "_END")
+            
+            # Generate body
+            self.generate_statement(body)
+            
+            # Generate update
+            if update:
+                self.generate_statement(update)
+            
+            self.write("jal\tx0,\t" + self.current_function.upper() + "_FOR")
 
-    def generate_if_stmt(self, stmt):
-        condition = stmt[1]
-        body = stmt[2]
-        
-        end_label = self.get_new_label()
-        
-        # Generate condition
-        reg = self.get_register()
-        self.generate_expression(condition, reg)
-        self.write(f"beqz {reg}, {end_label}")
-        self.free_register(reg)
-        
-        # Generate body
-        self.generate_statement(body)
-        
-        self.write(f"{end_label}:")
-
-    def generate_if_else_stmt(self, stmt):
-        condition = stmt[1]
-        if_body = stmt[2]
-        else_body = stmt[3]
-        
-        else_label = self.get_new_label()
-        end_label = self.get_new_label()
-        
-        # Generate condition
-        reg = self.get_register()
-        self.generate_expression(condition, reg)
-        self.write(f"beqz {reg}, {else_label}")
-        self.free_register(reg)
-        
-        # Generate if body
-        self.generate_statement(if_body)
-        self.write(f"j {end_label}")
-        
-        # Generate else body
-        self.write(f"{else_label}:")
-        self.generate_statement(else_body)
-        
-        self.write(f"{end_label}:")
-
-    def generate_while_stmt(self, stmt):
-        condition = stmt[1]
-        body = stmt[2]
-        
-        start_label = self.get_new_label()
-        end_label = self.get_new_label()
-        
-        self.write(f"{start_label}:")
-        
-        # Generate condition
-        reg = self.get_register()
-        self.generate_expression(condition, reg)
-        self.write(f"beqz {reg}, {end_label}")
-        self.free_register(reg)
-        
-        # Generate body
-        self.generate_statement(body)
-        self.write(f"j {start_label}")
-        
-        self.write(f"{end_label}:")
-
-    def generate_for_stmt(self, stmt):
-        init = stmt[1]
-        condition = stmt[2]
-        update = stmt[3]
-        body = stmt[4]
-        
-        start_label = self.get_new_label()
-        end_label = self.get_new_label()
-        
-        # Generate initialization
-        self.generate_statement(init)
-        
-        self.write(f"{start_label}:")
-        
-        # Generate condition
-        reg = self.get_register()
-        self.generate_expression(condition, reg)
-        self.write(f"beqz {reg}, {end_label}")
-        self.free_register(reg)
-        
-        # Generate body
-        self.generate_statement(body)
-        
-        # Generate update
-        self.generate_statement(update)
-        
-        self.write(f"j {start_label}")
-        self.write(f"{end_label}:")
-
-    def generate_expression(self, expr, target_reg):
+    def generate_expr(self, expr):
         if isinstance(expr, tuple):
-            if expr[0] == 'assign':
-                self.generate_expression(expr[2], target_reg)
-                var_reg = self.variables.get(expr[1][1])
-                if var_reg:
-                    self.write(f"mv {var_reg}, {target_reg}")
-            elif expr[0] == 'relop':
-                left_reg = self.get_register()
-                right_reg = self.get_register()
-                self.generate_expression(expr[2], left_reg)
-                self.generate_expression(expr[3], right_reg)
+            op = expr[0]
+            
+            if op == 'num':
+                self.write(f"addi\tx10,\tx0,\t{expr[1]}\t# Cargar constante")
                 
-                if expr[1] == '<=':
-                    self.write(f"slt {target_reg}, {right_reg}, {left_reg}")
-                    self.write(f"xori {target_reg}, {target_reg}, 1")
-                elif expr[1] == '<':
-                    self.write(f"slt {target_reg}, {left_reg}, {right_reg}")
-                elif expr[1] == '>':
-                    self.write(f"slt {target_reg}, {right_reg}, {left_reg}")
-                elif expr[1] == '>=':
-                    self.write(f"slt {target_reg}, {left_reg}, {right_reg}")
-                    self.write(f"xori {target_reg}, {target_reg}, 1")
-                elif expr[1] == '==':
-                    self.write(f"sub {target_reg}, {left_reg}, {right_reg}")
-                    self.write(f"seqz {target_reg}, {target_reg}")
-                elif expr[1] == '!=':
-                    self.write(f"sub {target_reg}, {left_reg}, {right_reg}")
-                    self.write(f"snez {target_reg}, {target_reg}")
+            elif op == 'id':
+                var_offset = self.variables[expr[1]]
+                self.write(f"ld\tx10,\t{var_offset}(x2)\t# Cargar variable {expr[1]}")
                 
-                self.free_register(left_reg)
-                self.free_register(right_reg)
-            elif expr[0] == 'addop':
-                left_reg = self.get_register()
-                right_reg = self.get_register()
-                self.generate_expression(expr[2], left_reg)
-                self.generate_expression(expr[3], right_reg)
+            elif op == 'call':
+                fun_name = expr[1]
+                args = expr[2]
                 
-                if expr[1] == '+':
-                    self.write(f"add {target_reg}, {left_reg}, {right_reg}")
-                elif expr[1] == '-':
-                    self.write(f"sub {target_reg}, {left_reg}, {right_reg}")
-                
-                self.free_register(left_reg)
-                self.free_register(right_reg)
-            elif expr[0] == 'mulop':
-                left_reg = self.get_register()
-                right_reg = self.get_register()
-                self.generate_expression(expr[2], left_reg)
-                self.generate_expression(expr[3], right_reg)
-                
-                if expr[1] == '*':
-                    self.write(f"mul {target_reg}, {left_reg}, {right_reg}")
-                elif expr[1] == '/':
-                    self.write(f"div {target_reg}, {left_reg}, {right_reg}")
-                
-                self.free_register(left_reg)
-                self.free_register(right_reg)
-            elif expr[0] == 'var':
-                var_reg = self.variables.get(expr[1])
-                if var_reg:
-                    self.write(f"mv {target_reg}, {var_reg}")
-            elif expr[0] == 'call':
                 # Save caller-saved registers
-                self.write("addi sp, sp, -64")
-                for i, reg in enumerate(self.registers):
-                    self.write(f"sd {reg}, {i*8}(sp)")
+                self.write("addi\tx2,\tx2,\t-64\t# Reservar espacio para registros")
+                self.write("sd\tx5,\t0(x2)\t# Guardar registro t0")
+                self.write("sd\tx6,\t8(x2)\t# Guardar registro t1")
+                self.write("sd\tx7,\t16(x2)\t# Guardar registro t2")
+                self.write("sd\tx12,\t24(x2)\t# Guardar registro t3")
+                self.write("sd\tx13,\t32(x2)\t# Guardar registro t4")
+                self.write("sd\tx14,\t40(x2)\t# Guardar registro t5")
+                self.write("sd\tx15,\t48(x2)\t# Guardar registro t6")
                 
                 # Generate arguments
-                for i, arg in enumerate(expr[2][:8]):
-                    reg = self.get_register()
-                    self.generate_expression(arg, reg)
-                    self.write(f"mv a{i}, {reg}")
-                    self.free_register(reg)
+                for i, arg in enumerate(args):
+                    self.generate_expr(arg)
+                    if i == 0:
+                        self.write("addi\tx10,\tx10,\t0\t# Pasar argumento 0")
+                    elif i == 1:
+                        self.write("addi\tx11,\tx10,\t0\t# Pasar argumento 1")
                 
                 # Call function
-                self.write(f"call {expr[1]}")
+                self.write(f"jal\tx1,\t{fun_name.upper()}\t# Llamar función")
                 
-                # Move result to target register
-                self.write(f"mv {target_reg}, a0")
+                # Restore caller-saved registers
+                self.write("ld\tx5,\t0(x2)\t# Restaurar registro t0")
+                self.write("ld\tx6,\t8(x2)\t# Restaurar registro t1")
+                self.write("ld\tx7,\t16(x2)\t# Restaurar registro t2")
+                self.write("ld\tx12,\t24(x2)\t# Restaurar registro t3")
+                self.write("ld\tx13,\t32(x2)\t# Restaurar registro t4")
+                self.write("ld\tx14,\t40(x2)\t# Restaurar registro t5")
+                self.write("ld\tx15,\t48(x2)\t# Restaurar registro t6")
+                self.write("addi\tx2,\tx2,\t64\t# Liberar espacio de registros")
                 
-                # Restore registers
-                for i, reg in enumerate(self.registers):
-                    self.write(f"ld {reg}, {i*8}(sp)")
-                self.write("addi sp, sp, 64")
+            elif op in ['+', '-', '*', '/', '%']:
+                self.generate_expr(expr[1])
+                self.write("addi\tx5,\tx10,\t0\t# Guardar primer operando")
+                self.generate_expr(expr[2])
+                
+                if op == '+':
+                    self.write("add\tx10,\tx5,\tx10\t# Suma")
+                elif op == '-':
+                    self.write("sub\tx10,\tx5,\tx10\t# Resta")
+                elif op == '*':
+                    self.write("mul\tx10,\tx5,\tx10\t# Multiplicación")
+                elif op == '/':
+                    self.write("div\tx10,\tx5,\tx10\t# División")
+                elif op == '%':
+                    self.write("rem\tx10,\tx5,\tx10\t# Módulo")
+                    
+            elif op in ['<', '<=', '>', '>=', '==', '!=']:
+                self.generate_expr(expr[1])
+                self.write("addi\tx5,\tx10,\t0\t# Guardar primer operando")
+                self.generate_expr(expr[2])
+                
+                if op == '<':
+                    self.write("slt\tx10,\tx5,\tx10\t# Menor que")
+                elif op == '<=':
+                    self.write("slt\tx6,\tx10,\tx5\t# Mayor que")
+                    self.write("xori\tx10,\tx6,\t1\t# Menor o igual que")
+                elif op == '>':
+                    self.write("slt\tx10,\tx10,\tx5\t# Mayor que")
+                elif op == '>=':
+                    self.write("slt\tx6,\tx5,\tx10\t# Menor que")
+                    self.write("xori\tx10,\tx6,\t1\t# Mayor o igual que")
+                elif op == '==':
+                    self.write("sub\tx10,\tx5,\tx10\t# Resta")
+                    self.write("sltiu\tx10,\tx10,\t1\t# Igual que")
+                elif op == '!=':
+                    self.write("sub\tx10,\tx5,\tx10\t# Resta")
+                    self.write("sltu\tx10,\tx0,\tx10\t# Diferente que")
         elif isinstance(expr, int):
-            self.write(f"li {target_reg}, {expr}")
+            self.write(f"addi\t{self.reg_name(target_reg)},\tx0,\t{expr}\t# Cargar constante")
         elif isinstance(expr, str) and len(expr) == 1:  # Character literal
-            self.write(f"li {target_reg}, {ord(expr)}")
+            self.write(f"addi\t{self.reg_name(target_reg)},\tx0,\t{ord(expr)}\t# Cargar carácter")
 
 # Test the code generator
 if __name__ == '__main__':
