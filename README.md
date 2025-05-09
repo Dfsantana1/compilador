@@ -1,217 +1,133 @@
-# Compilador SmallC y Calculadora
+# Compilador Small C a RISC-V
 
-Este proyecto implementa un compilador para un subconjunto del lenguaje C llamado SmallC, junto con una calculadora simple que demuestra su funcionamiento.
+Este proyecto implementa un compilador que traduce código fuente escrito en Small C a código ensamblador RISC-V.
 
-## Descripción General
+## Características
 
-El compilador SmallC está implementado en Python y utiliza PLY (Python Lex-Yacc) para el análisis léxico y sintáctico. El proyecto incluye:
-
-1. Un compilador completo para SmallC
-2. Una calculadora que demuestra el uso del compilador
-3. Herramientas de análisis léxico, sintáctico y semántico
-4. Generador de código C
-
-## Componentes del Compilador
-
-### 1. Analizador Léxico (lexer.py)
-- Convierte el código fuente en tokens
-- Reconoce:
-  - Identificadores (variables y funciones)
-  - Números enteros
-  - Operadores (+, -, *, /, ==, !=, <, <=, >, >=)
-  - Palabras reservadas (if, else, while, int, void, return)
-  - Símbolos especiales ({, }, ;, etc.)
-
-### 2. Analizador Sintáctico (parser.py)
-- Convierte los tokens en un Árbol de Sintaxis Abstracta (AST)
-- Implementa la gramática del lenguaje
-- Maneja:
-  - Declaraciones de variables y funciones
-  - Expresiones aritméticas
-  - Estructuras de control
-  - Llamadas a funciones
-
-### 3. Analizador Semántico (semantic.py)
-- Verifica el significado del código
-- Mantiene una tabla de símbolos
-- Realiza comprobaciones de:
-  - Variables no declaradas
-  - Funciones no definidas
-  - Ámbitos de variables
-  - Tipos de datos
-
-### 4. Generador de Código (codegen.py)
-- Convierte el AST en código C válido
-- Genera código manteniendo la estructura original
-- Maneja la indentación y formato
-
-## La Calculadora
-
-La calculadora implementada demuestra el uso del compilador con un programa que realiza operaciones básicas:
-
-```c
-int main(void) {
-    int a;
-    int b;
-    int suma;
-    int resta;
-    int multiplicacion;
-    int division;
-    
-    a = 20;
-    b = 5;
-    
-    suma = a + b;
-    resta = a - b;
-    multiplicacion = a * b;
-    division = a / b;
-    
-    return suma;
-}
-```
-
-### Características de la Calculadora
-- Realiza las cuatro operaciones básicas:
-  1. Suma (+)
-  2. Resta (-)
-  3. Multiplicación (*)
-  4. División (/)
-- Maneja números enteros
-- Incluye manejo básico de errores (división por cero)
+- Soporta tipos de datos `int` y `char`
+- Maneja estructuras de control: `if`, `else`, `while`, `for`
+- Variables globales a nivel de funciones
+- Arreglos de tamaño constante
+- Genera código ensamblador RISC-V compatible con [godbolt.org](https://godbolt.org)
 
 ## Requisitos
 
 - Python 3.6 o superior
-- PLY (Python Lex-Yacc)
-- GCC (para compilar el código C generado)
+- Dependencias listadas en `requirements.txt`
 
 ## Instalación
 
-1. Clonar el repositorio
-2. Crear un entorno virtual:
-   ```bash
-   python3 -m venv venv
-   ```
-3. Activar el entorno virtual:
-   ```bash
-   source venv/bin/activate
-   ```
-4. Instalar las dependencias:
-   ```bash
-   pip install -r requirements.txt
-   ```
+1. Clonar el repositorio:
+```bash
+git clone <url-del-repositorio>
+cd <nombre-del-directorio>
+```
+
+2. Crear un entorno virtual (opcional pero recomendado):
+```bash
+python -m venv venv
+source venv/bin/activate  # En Linux/Mac
+# o
+venv\Scripts\activate  # En Windows
+```
+
+3. Instalar dependencias:
+```bash
+pip install -r requirements.txt
+```
 
 ## Uso
 
-### Compilando un Programa SmallC
+El compilador se ejecuta desde la línea de comandos:
 
-1. Crear un archivo con extensión `.sc` (por ejemplo, `calculadora.sc`)
-2. Ejecutar el compilador:
-   ```bash
-   python main.py calculadora.sc
-   ```
-3. El compilador generará un archivo `.c` con el mismo nombre
+```bash
+python main.py <archivo_entrada.sc> <archivo_salida.asm>
+```
 
-### Ejecutando la Calculadora
+### Ejemplo
 
-1. Compilar el código C generado:
-   ```bash
-   gcc calculadora.c -o calculadora
-   ```
-2. Ejecutar el programa:
-   ```bash
-   ./calculadora
-   ```
+1. Crear un archivo de entrada `program.sc`:
+```c
+int main() {
+    char c = 'a';
+    int x = 5;
+    for(int i = 0; i < 10; i++) {
+        if (x > 0) {
+            return x;
+        }
+    }
+    return 0;
+}
+```
+
+2. Compilar el programa:
+```bash
+python main.py program.sc program.asm
+```
+
+3. El archivo `program.asm` contendrá el código ensamblador RISC-V generado.
 
 ## Estructura del Proyecto
 
-```
-.
-├── README.md
-├── requirements.txt
-├── main.py
-├── lexer.py
-├── parser.py
-├── semantic.py
-├── codegen.py
-├── calculadora.sc
-└── calculadora.c (generado)
-```
+- `lexer.py`: Implementa el analizador léxico
+- `parser.py`: Implementa el analizador sintáctico
+- `semantic.py`: Implementa el analizador semántico
+- `codegen.py`: Implementa el generador de código RISC-V
+- `main.py`: Punto de entrada del compilador
 
-## Limitaciones
+## Gramática Small C
 
-- Solo soporta números enteros
-- No soporta números de punto flotante
-- No soporta arrays
-- No soporta estructuras o uniones
-- No soporta punteros
-- No soporta directivas del preprocesador
-- No soporta variables globales
+La gramática implementada soporta:
 
-## Ejemplos de Uso
+- Declaraciones de variables y funciones
+- Tipos de datos: `int` y `char`
+- Operadores aritméticos: `+`, `-`, `*`, `/`
+- Operadores relacionales: `==`, `!=`, `<`, `<=`, `>`, `>=`
+- Estructuras de control: `if`, `else`, `while`, `for`
+- Arreglos de tamaño constante
+- Llamadas a funciones
 
-### Ejemplo Simple
+## Ejemplos
+
+### Ejemplo 1: Factorial
 ```c
-int main(void) {
-    int a;
-    int b;
-    int c;
-    
-    a = 10;
-    b = 5;
-    c = a + b;
-    
-    return c;
+int factorial(int n) {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * factorial(n - 1);
+}
+
+int main() {
+    int result = factorial(5);
+    return result;
 }
 ```
 
-### Ejemplo con Múltiples Operaciones
+### Ejemplo 2: Array y Bucle
 ```c
-int main(void) {
-    int a;
-    int b;
-    int suma;
-    int resta;
-    int multiplicacion;
-    int division;
-    
-    a = 20;
-    b = 5;
-    
-    suma = a + b;
-    resta = a - b;
-    multiplicacion = a * b;
-    division = a / b;
-    
-    return suma;
+int main() {
+    int arr[5];
+    int i;
+    for(i = 0; i < 5; i++) {
+        arr[i] = i * 2;
+    }
+    return arr[4];
 }
 ```
 
-## Solución de Problemas
+## Verificación
 
-### Errores Comunes
+El código ensamblador generado puede ser verificado en [godbolt.org](https://godbolt.org) seleccionando el compilador RISC-V.
 
-1. **Error de sintaxis**
-   - Verificar que el código siga la gramática de SmallC
-   - Asegurarse de que todas las declaraciones estén al inicio de cada bloque
+## Contribuir
 
-2. **Error de compilación**
-   - Verificar que todas las variables estén declaradas
-   - Asegurarse de que los tipos de datos sean correctos
-
-3. **Error de ejecución**
-   - Verificar que no haya división por cero
-   - Asegurarse de que los valores estén dentro del rango de enteros
-
-## Contribuciones
-
-Las contribuciones son bienvenidas. Por favor, asegúrate de:
-1. Hacer fork del repositorio
-2. Crear una rama para tu característica
-3. Hacer commit de tus cambios
-4. Hacer push a la rama
-5. Crear un Pull Request
+1. Fork el repositorio
+2. Crear una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abrir un Pull Request
 
 ## Licencia
 
-Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles. 
+Este proyecto está licenciado bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles. 

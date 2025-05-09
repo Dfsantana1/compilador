@@ -21,14 +21,18 @@ def p_declaration(p):
 
 def p_var_declaration(p):
     '''var_declaration : type_specifier ID SEMICOLON
+                      | type_specifier ID ASSIGN expression SEMICOLON
                       | type_specifier ID LBRACKET NUMBER RBRACKET SEMICOLON'''
     if len(p) == 4:
         p[0] = ('var_declaration', p[1], p[2])
+    elif len(p) == 6:
+        p[0] = ('var_declaration_init', p[1], p[2], p[4])
     else:
         p[0] = ('array_declaration', p[1], p[2], p[4])
 
 def p_type_specifier(p):
     '''type_specifier : INT
+                     | CHAR
                      | VOID'''
     p[0] = p[1]
 
@@ -85,7 +89,8 @@ def p_statement(p):
                 | compound_stmt
                 | return_stmt
                 | if_stmt
-                | while_stmt'''
+                | while_stmt
+                | for_stmt'''
     p[0] = p[1]
 
 def p_expression_stmt(p):
@@ -115,6 +120,10 @@ def p_if_stmt(p):
 def p_while_stmt(p):
     '''while_stmt : WHILE LPAREN expression RPAREN statement'''
     p[0] = ('while_stmt', p[3], p[5])
+
+def p_for_stmt(p):
+    '''for_stmt : FOR LPAREN expression_stmt expression_stmt expression RPAREN statement'''
+    p[0] = ('for_stmt', p[3], p[4], p[5], p[7])
 
 def p_expression(p):
     '''expression : var ASSIGN expression
@@ -179,7 +188,8 @@ def p_factor(p):
     '''factor : LPAREN expression RPAREN
               | var
               | call
-              | NUMBER'''
+              | NUMBER
+              | CHAR_LITERAL'''
     if len(p) == 4:
         p[0] = p[2]
     else:
@@ -220,9 +230,12 @@ parser = yacc.yacc()
 if __name__ == '__main__':
     data = '''
     int main() {
+        char c = 'a';
         int x = 5;
-        if (x > 0) {
-            return x;
+        for(int i = 0; i < 10; i++) {
+            if (x > 0) {
+                return x;
+            }
         }
         return 0;
     }

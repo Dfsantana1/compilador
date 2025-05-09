@@ -4,6 +4,7 @@ from ply import lex
 tokens = (
     'ID',           # identifiers
     'NUMBER',       # integer literals
+    'CHAR_LITERAL', # character literals
     'PLUS',         # +
     'MINUS',        # -
     'TIMES',        # *
@@ -30,7 +31,9 @@ reserved = {
     'if': 'IF',
     'else': 'ELSE',
     'while': 'WHILE',
+    'for': 'FOR',
     'int': 'INT',
+    'char': 'CHAR',
     'return': 'RETURN',
     'void': 'VOID',
 }
@@ -59,6 +62,12 @@ t_GT = r'>'
 t_GE = r'>='
 t_COMMA = r','
 
+# Regular expression rule for character literals
+def t_CHAR_LITERAL(t):
+    r'\'[^\'\\]\'|\'\\[ntr\'\"\\]\''
+    t.value = t.value[1:-1]  # Remove quotes
+    return t
+
 # Regular expression rule for identifiers
 def t_ID(t):
     r'[a-zA-Z_][a-zA-Z_0-9]*'
@@ -71,10 +80,15 @@ def t_NUMBER(t):
     t.value = int(t.value)
     return t
 
-# Rule for tracking line numbers
+# Define a rule so we can track line numbers
 def t_newline(t):
     r'\n+'
     t.lexer.lineno += len(t.value)
+
+# Handle comments
+def t_COMMENT(t):
+    r'//.*'
+    pass  # No return value. Token is discarded
 
 # A string containing ignored characters (spaces and tabs)
 t_ignore = ' \t'
@@ -90,12 +104,11 @@ lexer = lex.lex()
 # Test the lexer
 if __name__ == '__main__':
     data = '''
-    int main() {
-        int x = 5;
-        if (x > 0) {
-            return x;
-        }
-        return 0;
+    int main(void) {
+        int x;
+        // This is a comment
+        x = 5;  // Another comment
+        return x;
     }
     '''
     lexer.input(data)
