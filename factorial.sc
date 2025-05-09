@@ -7,6 +7,6 @@ int factorial(int n) {
 
 int main(void) {
     int result;
-    result = factorial(5);
+    result = factorial(3);
     return result;
 } 

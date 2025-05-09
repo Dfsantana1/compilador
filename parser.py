@@ -21,14 +21,11 @@ def p_declaration(p):
 
 def p_var_declaration(p):
     '''var_declaration : type_specifier ID SEMICOLON
-                      | type_specifier ID ASSIGN expression SEMICOLON
-                      | type_specifier ID LBRACKET NUMBER RBRACKET SEMICOLON'''
+                      | type_specifier ID ASSIGN expression SEMICOLON'''
     if len(p) == 4:
         p[0] = ('var_declaration', p[1], p[2])
-    elif len(p) == 6:
-        p[0] = ('var_declaration_init', p[1], p[2], p[4])
     else:
-        p[0] = ('array_declaration', p[1], p[2], p[4])
+        p[0] = ('var_declaration_init', p[1], p[2], p[4])
 
 def p_type_specifier(p):
     '''type_specifier : INT
@@ -42,8 +39,9 @@ def p_fun_declaration(p):
 
 def p_params(p):
     '''params : param_list
-              | VOID'''
-    if p[1] == 'void':
+              | VOID
+              | empty'''
+    if p[1] == 'void' or p[1] is None:
         p[0] = []
     else:
         p[0] = p[1]
@@ -57,12 +55,8 @@ def p_param_list(p):
         p[0] = p[1] + [p[3]]
 
 def p_param(p):
-    '''param : type_specifier ID
-            | type_specifier ID LBRACKET RBRACKET'''
-    if len(p) == 3:
-        p[0] = ('param', p[1], p[2])
-    else:
-        p[0] = ('array_param', p[1], p[2])
+    '''param : type_specifier ID'''
+    p[0] = ('param', p[1], p[2])
 
 def p_compound_stmt(p):
     '''compound_stmt : LBRACE local_declarations statement_list RBRACE'''
@@ -89,8 +83,7 @@ def p_statement(p):
                 | compound_stmt
                 | return_stmt
                 | if_stmt
-                | while_stmt
-                | for_stmt'''
+                | while_stmt'''
     p[0] = p[1]
 
 def p_expression_stmt(p):
@@ -115,15 +108,11 @@ def p_if_stmt(p):
     if len(p) == 6:
         p[0] = ('if_stmt', p[3], p[5])
     else:
-        p[0] = ('if_else_stmt', p[3], p[5], p[7])
+        p[0] = ('if_stmt', p[3], p[5], p[7])
 
 def p_while_stmt(p):
     '''while_stmt : WHILE LPAREN expression RPAREN statement'''
     p[0] = ('while_stmt', p[3], p[5])
-
-def p_for_stmt(p):
-    '''for_stmt : FOR LPAREN expression_stmt expression_stmt expression RPAREN statement'''
-    p[0] = ('for_stmt', p[3], p[4], p[5], p[7])
 
 def p_expression(p):
     '''expression : var ASSIGN expression
@@ -134,12 +123,8 @@ def p_expression(p):
         p[0] = p[1]
 
 def p_var(p):
-    '''var : ID
-           | ID LBRACKET expression RBRACKET'''
-    if len(p) == 2:
-        p[0] = ('var', p[1])
-    else:
-        p[0] = ('array_var', p[1], p[3])
+    '''var : ID'''
+    p[0] = ('var', p[1])
 
 def p_simple_expression(p):
     '''simple_expression : additive_expression relop additive_expression
@@ -171,11 +156,6 @@ def p_addop(p):
              | MINUS'''
     p[0] = p[1]
 
-def p_mulop(p):
-    '''mulop : TIMES
-             | DIVIDE'''
-    p[0] = p[1]
-
 def p_term(p):
     '''term : term mulop factor
             | factor'''
@@ -184,12 +164,16 @@ def p_term(p):
     else:
         p[0] = p[1]
 
+def p_mulop(p):
+    '''mulop : TIMES
+             | DIVIDE'''
+    p[0] = p[1]
+
 def p_factor(p):
     '''factor : LPAREN expression RPAREN
               | var
               | call
-              | NUMBER
-              | CHAR_LITERAL'''
+              | NUMBER'''
     if len(p) == 4:
         p[0] = p[2]
     else:

@@ -6,7 +6,10 @@ int fibonacci(int n) {
 }
 
 int main(void) {
+    int n;
     int result;
-    result = fibonacci(6);  // Will calculate the 6th Fibonacci number (8)
+    
+    n = 6;
+    result = fibonacci(n);
     return result;
 } 
