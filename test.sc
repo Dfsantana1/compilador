@@ -1,14 +1,14 @@
-int main(void) {
-    int x;
-    int y;
-    int sum;
-    
-    x = 5;
-    y = 10;
-    sum = x + y;
-    
-    if (sum > 10) {
-        return sum;
-    }
-    return 0;
-} 
+int main() {
+    int a;
+    int b;
+    int r;
+
+    a = 8;
+    b = 8;
+    r = a - b;
+
+    if (r > 0)
+        return 1;
+    else
+        return 0;
+}

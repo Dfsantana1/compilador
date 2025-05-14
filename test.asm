@@ -1,40 +1,38 @@
-.section .text
-.globl _start
+.section .data
+    # Variables globales si las hubiera
 
-_start:
-    # Call main
-    call main
-    
-    # Exit program
-    li a7, 93  # syscall number for exit
-    li a0, 0   # exit code 0
-    ecall
+.section .text
+.globl main
 
 main:
-    addi sp, sp, -4
-    sw ra, 0(sp)
-    
-    # Variable declaration: int x
-    # Variable declaration: int y
-    # Variable declaration: int sum
-    
-    li t3, 5
-    mv t0, t3
-    li t3, 10
-    mv t1, t3
-    mv t4, t0
-    mv t5, t1
-    add t3, t4, t5
-    mv t2, t3
-    mv t4, t2
-    li t5, 10
-    sgt t3, t4, t5
-    beqz t3, L1
-    mv a0, t2
-    j L2
-L1:
-    li a0, 0
-L2:
-    lw ra, 0(sp)
-    addi sp, sp, 4
-    ret
+        addi    sp,sp,-32
+        sd      ra,24(sp)
+        sd      s0,16(sp)
+        addi    s0,sp,32
+        li      a5,8
+        sw      a5,0(s0)
+        li      a5,8
+        sw      a5,4(s0)
+        lw      a5,0(s0)
+        mv      a4,a5
+        lw      a5,4(s0)
+        subw    a5,a4,a5
+        sw      a5,8(s0)
+        lw      a5,8(s0)
+        mv      a4,a5
+        li      a5,0
+        slt     a5,a5,a4
+        sext.w  a4,a5
+        li      a5,0
+        ble     a4,a5,.L1
+        li      a5,1
+        mv      a0,a5
+        j       .L3
+        j       .L2
+.L1:
+        j       .L3
+.L2:
+        ld      ra,24(sp)
+        ld      s0,16(sp)
+        addi    sp,sp,32
+        jr      ra
