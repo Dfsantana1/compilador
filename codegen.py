@@ -23,6 +23,14 @@ class CodeGenerator:
         self.label_counter += 1
         return f".L{self.label_counter}"
 
+    def calculate_frame_size(self):
+        """Calculate the required frame size for the current function"""
+        # Base size for saved registers (ra, s0) = 8 bytes
+        # Plus space for local variables and parameters
+        total_size = 8 + self.current_offset
+        # Round up to multiple of 8 for alignment
+        return ((total_size + 7) // 8) * 8
+
     def generate(self, ast):
         if not ast:
             return ""
@@ -56,20 +64,26 @@ class CodeGenerator:
         # Function label
         self.write(f"{fun_name}:", f"Inicio de la función {fun_name}")
         
-        # Prologue - Save callee-saved registers
-        frame_size = 32  # Base frame size
-        self.write(f"        addi    sp,sp,-{frame_size}", "Reservar espacio en el stack")
-        self.write("        sd      ra,24(sp)", "Guardar return address")
-        self.write("        sd      s0,16(sp)", "Guardar frame pointer")
-        self.write(f"        addi    s0,sp,{frame_size}", "Configurar nuevo frame pointer")
-        
-        # Process parameters
+        # Process parameters first to calculate their offsets
         for i, param in enumerate(params):
             if param[0] == 'param':
                 param_name = param[2]
                 self.variables[param_name] = self.current_offset
                 self.current_offset += 4  # 4 bytes for 32-bit values
-                # Save parameter from argument register to stack
+        
+        # Calculate frame size based on variables and parameters
+        frame_size = self.calculate_frame_size()
+        
+        # Prologue - Save callee-saved registers
+        self.write(f"        addi    sp,sp,-{frame_size}", "Reservar espacio en el stack")
+        self.write("        sw      ra,{}(sp)".format(frame_size - 4), "Guardar return address")
+        self.write("        sw      s0,{}(sp)".format(frame_size - 8), "Guardar frame pointer")
+        self.write(f"        addi    s0,sp,{frame_size}", "Configurar nuevo frame pointer")
+        
+        # Save parameters to stack
+        for i, param in enumerate(params):
+            if param[0] == 'param':
+                param_name = param[2]
                 if i == 0:
                     self.write(f"        sw      a0,{self.variables[param_name]}(s0)", f"Guardar parámetro {param_name} en el stack")
                 else:
@@ -79,8 +93,8 @@ class CodeGenerator:
         self.generate_compound_stmt(body)
         
         # Epilogue
-        self.write("        ld      ra,24(sp)", "Restaurar return address")
-        self.write("        ld      s0,16(sp)", "Restaurar frame pointer")
+        self.write("        lw      ra,{}(sp)".format(frame_size - 4), "Restaurar return address")
+        self.write("        lw      s0,{}(sp)".format(frame_size - 8), "Restaurar frame pointer")
         self.write(f"        addi    sp,sp,{frame_size}", "Liberar espacio en el stack")
         self.write("        jr      ra", "Retornar de la función")
 
@@ -126,9 +140,8 @@ class CodeGenerator:
             
             # Generate condition
             self.generate_expression(stmt[1])
-            self.write("        sext.w  a4,a5", "Extender a 64 bits")
-            self.write("        li      a5,0", "Cargar 0 en a5")
-            self.write(f"        ble     a4,a5,{else_label}", f"Comparar y saltar a {else_label} si a4 <= a5")
+            self.write("        li      a4,0", "Cargar 0 en a4")
+            self.write(f"        ble     a5,a4,{else_label}", f"Comparar y saltar a {else_label} si a5 <= a4")
             
             # Generate then part
             self.generate_statement(stmt[2])
@@ -146,9 +159,8 @@ class CodeGenerator:
             
             self.write(f"{start_label}:", f"Inicio de la sección while")
             self.generate_expression(stmt[1])
-            self.write("        sext.w  a4,a5", "Extender a 64 bits")
-            self.write("        li      a5,0", "Cargar 0 en a5")
-            self.write(f"        ble     a4,a5,{end_label}", f"Comparar y saltar a {end_label} si a4 <= a5")
+            self.write("        li      a4,0", "Cargar 0 en a4")
+            self.write(f"        ble     a5,a4,{end_label}", f"Comparar y saltar a {end_label} si a5 <= a4")
             self.generate_statement(stmt[2])
             self.write(f"        j       {start_label}", f"Salto a {start_label}")
             self.write(f"{end_label}:", "Fin de la sección while")
@@ -170,9 +182,8 @@ class CodeGenerator:
             
             # Generate condition
             self.generate_statement(condition)
-            self.write("        sext.w  a4,a5", "Extender a 64 bits")
-            self.write("        li      a5,0", "Cargar 0 en a5")
-            self.write(f"        ble     a4,a5,{end_label}", f"Comparar y saltar a {end_label} si a4 <= a5")
+            self.write("        li      a4,0", "Cargar 0 en a4")
+            self.write(f"        ble     a5,a4,{end_label}", f"Comparar y saltar a {end_label} si a5 <= a4")
             
             # Generate body
             self.generate_statement(body)
@@ -241,14 +252,14 @@ class CodeGenerator:
             # Perform operation based on type and operator
             if expr_type == 'addop':
                 if expr[1] == '+':
-                    self.write("        addw    a5,a4,a5", "Suma de operandos")
+                    self.write("        add     a5,a4,a5", "Suma de operandos")
                 else:  # '-'
-                    self.write("        subw    a5,a4,a5", "Resta de operandos")
+                    self.write("        sub     a5,a4,a5", "Resta de operandos")
             else:  # mulop
                 if expr[1] == '*':
-                    self.write("        mulw    a5,a4,a5", "Multiplicación de operandos")
+                    self.write("        mul     a5,a4,a5", "Multiplicación de operandos")
                 else:  # '/'
-                    self.write("        divw    a5,a4,a5", "División de operandos")
+                    self.write("        div     a5,a4,a5", "División de operandos")
         
         elif expr_type == 'relop':
             # Generate left operand
@@ -258,7 +269,7 @@ class CodeGenerator:
             # Generate right operand
             self.generate_expression(expr[3])
             
-            # Compare based on operator using RV64I instructions
+            # Compare based on operator using RV32I instructions
             if expr[1] == '<':
                 self.write("        slt     a5,a4,a5", "Comparación menor que")
             elif expr[1] == '<=':
