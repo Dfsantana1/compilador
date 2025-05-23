@@ -1,38 +1,38 @@
-.section .data
+.section .data    # Sección de datos globales
     # Variables globales si las hubiera
 
-.section .text
-.globl main
+.section .text    # Sección de código
+.globl main    # Declaración de la función main como global
 
-main:
-        addi    sp,sp,-32
-        sd      ra,24(sp)
-        sd      s0,16(sp)
-        addi    s0,sp,32
-        li      a5,8
-        sw      a5,0(s0)
-        li      a5,8
-        sw      a5,4(s0)
-        lw      a5,0(s0)
-        mv      a4,a5
-        lw      a5,4(s0)
-        subw    a5,a4,a5
-        sw      a5,8(s0)
-        lw      a5,8(s0)
-        mv      a4,a5
-        li      a5,0
-        slt     a5,a5,a4
-        sext.w  a4,a5
-        li      a5,0
-        ble     a4,a5,.L1
-        li      a5,1
-        mv      a0,a5
-        j       .L3
-        j       .L2
-.L1:
-        j       .L3
-.L2:
-        ld      ra,24(sp)
-        ld      s0,16(sp)
-        addi    sp,sp,32
-        jr      ra
+main:    # Inicio de la función main
+        addi    sp,sp,-32    # Reservar espacio en el stack
+        sd      ra,24(sp)    # Guardar return address
+        sd      s0,16(sp)    # Guardar frame pointer
+        addi    s0,sp,32    # Configurar nuevo frame pointer
+        li      a5,8    # Cargar constante 8
+        sw      a5,0(s0)    # Guardar valor en variable a
+        li      a5,8    # Cargar constante 8
+        sw      a5,4(s0)    # Guardar valor en variable b
+        lw      a5,0(s0)    # Cargar variable a
+        mv      a4,a5    # Guardar primer operando
+        lw      a5,4(s0)    # Cargar variable b
+        subw    a5,a4,a5    # Resta de operandos
+        sw      a5,8(s0)    # Guardar valor en variable r
+        lw      a5,8(s0)    # Cargar variable r
+        mv      a4,a5    # Guardar primer operando
+        li      a5,0    # Cargar constante 0
+        slt     a5,a5,a4    # Comparación mayor que
+        sext.w  a4,a5    # Extender a 64 bits
+        li      a5,0    # Cargar 0 en a5
+        ble     a4,a5,.L1    # Comparar y saltar a .L1 si a4 <= a5
+        li      a5,1    # Cargar constante 1
+        mv      a0,a5    # Mover resultado a a0
+        j       .L3    # Salto a etiqueta .L3
+        j       .L2    # Salto a .L2
+.L1:    # Inicio de la sección else
+        j       .L3    # Salto a etiqueta .L3
+.L2:    # Fin de la sección if
+        ld      ra,24(sp)    # Restaurar return address
+        ld      s0,16(sp)    # Restaurar frame pointer
+        addi    sp,sp,32    # Liberar espacio en el stack
+        jr      ra    # Retornar de la función

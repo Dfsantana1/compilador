@@ -12,8 +12,12 @@ class CodeGenerator:
         self.temp_counter += 1
         return self.temp_counter
 
-    def write(self, line):
-        self.output.append(line)
+    def write(self, line, comment=None):
+        """Write a line of assembly code with an optional comment"""
+        if comment:
+            self.output.append(f"{line}    # {comment}")
+        else:
+            self.output.append(line)
 
     def get_new_label(self):
         self.label_counter += 1
@@ -24,13 +28,13 @@ class CodeGenerator:
             return ""
         
         # Add data section
-        self.write(".section .data")
+        self.write(".section .data", "Sección de datos globales")
         self.write("    # Variables globales si las hubiera")
         self.write("")
         
         # Add text section
-        self.write(".section .text")
-        self.write(".globl main")
+        self.write(".section .text", "Sección de código")
+        self.write(".globl main", "Declaración de la función main como global")
         self.write("")
         
         # AST is ('program', [declarations])
@@ -50,14 +54,14 @@ class CodeGenerator:
         self.current_offset = 0
         
         # Function label
-        self.write(f"{fun_name}:")
+        self.write(f"{fun_name}:", f"Inicio de la función {fun_name}")
         
         # Prologue - Save callee-saved registers
         frame_size = 32  # Base frame size
-        self.write(f"        addi    sp,sp,-{frame_size}")
-        self.write("        sd      ra,24(sp)")
-        self.write("        sd      s0,16(sp)")
-        self.write(f"        addi    s0,sp,{frame_size}")
+        self.write(f"        addi    sp,sp,-{frame_size}", "Reservar espacio en el stack")
+        self.write("        sd      ra,24(sp)", "Guardar return address")
+        self.write("        sd      s0,16(sp)", "Guardar frame pointer")
+        self.write(f"        addi    s0,sp,{frame_size}", "Configurar nuevo frame pointer")
         
         # Process parameters
         for i, param in enumerate(params):
@@ -67,18 +71,18 @@ class CodeGenerator:
                 self.current_offset += 4  # 4 bytes for 32-bit values
                 # Save parameter from argument register to stack
                 if i == 0:
-                    self.write(f"        sw      a0,{self.variables[param_name]}(s0)")
+                    self.write(f"        sw      a0,{self.variables[param_name]}(s0)", f"Guardar parámetro {param_name} en el stack")
                 else:
-                    self.write(f"        sw      a1,{self.variables[param_name]}(s0)")
+                    self.write(f"        sw      a1,{self.variables[param_name]}(s0)", f"Guardar parámetro {param_name} en el stack")
         
         # Generate code for function body
         self.generate_compound_stmt(body)
         
         # Epilogue
-        self.write("        ld      ra,24(sp)")
-        self.write("        ld      s0,16(sp)")
-        self.write(f"        addi    sp,sp,{frame_size}")
-        self.write("        jr      ra")
+        self.write("        ld      ra,24(sp)", "Restaurar return address")
+        self.write("        ld      s0,16(sp)", "Restaurar frame pointer")
+        self.write(f"        addi    sp,sp,{frame_size}", "Liberar espacio en el stack")
+        self.write("        jr      ra", "Retornar de la función")
 
     def generate_compound_stmt(self, stmt):
         # ('compound_stmt', local_declarations, statement_list)
@@ -101,7 +105,7 @@ class CodeGenerator:
         
         if len(decl) > 3:  # Has initialization
             self.generate_expression(decl[3])
-            self.write(f"        sw      a5,{self.variables[var_name]}(s0)")
+            self.write(f"        sw      a5,{self.variables[var_name]}(s0)", f"Guardar valor en variable {var_name}")
 
     def generate_statement(self, stmt):
         stmt_type = stmt[0]
@@ -113,8 +117,8 @@ class CodeGenerator:
         elif stmt_type == 'return_stmt':
             if stmt[1]:  # Has return expression
                 self.generate_expression(stmt[1])
-                self.write("        mv      a0,a5")
-            self.write("        j       .L3")
+                self.write("        mv      a0,a5", "Mover resultado a a0")
+            self.write("        j       .L3", "Salto a etiqueta .L3")
         
         elif stmt_type == 'if_stmt':
             else_label = self.get_new_label()
@@ -122,55 +126,55 @@ class CodeGenerator:
             
             # Generate condition
             self.generate_expression(stmt[1])
-            self.write("        sext.w  a4,a5")
-            self.write("        li      a5,0")
-            self.write(f"        ble     a4,a5,{else_label}")
+            self.write("        sext.w  a4,a5", "Extender a 64 bits")
+            self.write("        li      a5,0", "Cargar 0 en a5")
+            self.write(f"        ble     a4,a5,{else_label}", f"Comparar y saltar a {else_label} si a4 <= a5")
             
             # Generate then part
             self.generate_statement(stmt[2])
-            self.write(f"        j       {end_label}")
+            self.write(f"        j       {end_label}", f"Salto a {end_label}")
             
             # Generate else part
-            self.write(f"{else_label}:")
+            self.write(f"{else_label}:", f"Inicio de la sección else")
             if len(stmt) > 3:  # Has else part
                 self.generate_statement(stmt[3])
-            self.write(f"{end_label}:")
+            self.write(f"{end_label}:", "Fin de la sección if")
         
         elif stmt_type == 'while_stmt':
             start_label = self.get_new_label()
             end_label = self.get_new_label()
             
-            self.write(f"{start_label}:")
+            self.write(f"{start_label}:", f"Inicio de la sección while")
             self.generate_expression(stmt[1])
-            self.write("        sext.w  a4,a5")
-            self.write("        li      a5,0")
-            self.write(f"        ble     a4,a5,{end_label}")
+            self.write("        sext.w  a4,a5", "Extender a 64 bits")
+            self.write("        li      a5,0", "Cargar 0 en a5")
+            self.write(f"        ble     a4,a5,{end_label}", f"Comparar y saltar a {end_label} si a4 <= a5")
             self.generate_statement(stmt[2])
-            self.write(f"        j       {start_label}")
-            self.write(f"{end_label}:")
+            self.write(f"        j       {start_label}", f"Salto a {start_label}")
+            self.write(f"{end_label}:", "Fin de la sección while")
 
     def generate_expression(self, expr):
         if not isinstance(expr, tuple):
             # Handle literal values
             if isinstance(expr, int):
-                self.write(f"        li      a5,{expr}")
+                self.write(f"        li      a5,{expr}", f"Cargar constante {expr}")
             return
             
         expr_type = expr[0]
         
         if expr_type == 'NUMBER':
-            self.write(f"        li      a5,{expr[1]}")
+            self.write(f"        li      a5,{expr[1]}", f"Cargar constante {expr[1]}")
         
         elif expr_type == 'var':
             var_name = expr[1]
             if var_name in self.variables:
-                self.write(f"        lw      a5,{self.variables[var_name]}(s0)")
+                self.write(f"        lw      a5,{self.variables[var_name]}(s0)", f"Cargar variable {var_name}")
         
         elif expr_type == 'assign':
             var = expr[1][1]  # Get variable name from ('var', name)
             self.generate_expression(expr[2])  # Generate right side
             if var in self.variables:
-                self.write(f"        sw      a5,{self.variables[var]}(s0)")
+                self.write(f"        sw      a5,{self.variables[var]}(s0)", f"Guardar valor en variable {var}")
         
         elif expr_type == 'call':
             fun_name = expr[1]
@@ -181,24 +185,24 @@ class CodeGenerator:
                 self.generate_expression(arg)
                 if i == 0:
                     # Save first argument in a temporary location
-                    self.write("        sw      a5,0(sp)")
+                    self.write("        sw      a5,0(sp)", "Guardar primer argumento temporalmente")
                 else:
                     # Move second argument to a1
-                    self.write("        mv      a1,a5")
+                    self.write("        mv      a1,a5", "Mover segundo argumento a a1")
             
             # Move first argument to a0
             if len(args) > 0:
-                self.write("        lw      a0,0(sp)")
+                self.write("        lw      a0,0(sp)", "Cargar primer argumento en a0")
             
             # Make the call
-            self.write(f"        call    {fun_name}")
-            self.write("        mv      a5,a0")
+            self.write(f"        call    {fun_name}", f"Llamar a función {fun_name}")
+            self.write("        mv      a5,a0", "Guardar resultado de la función")
         
         elif expr_type in ['addop', 'mulop']:
             # Generate left operand
             self.generate_expression(expr[2])
             # Save left operand in a temporary register
-            self.write("        mv      a4,a5")
+            self.write("        mv      a4,a5", "Guardar primer operando")
             
             # Generate right operand
             self.generate_expression(expr[3])
@@ -206,40 +210,40 @@ class CodeGenerator:
             # Perform operation based on type and operator
             if expr_type == 'addop':
                 if expr[1] == '+':
-                    self.write("        addw    a5,a4,a5")
+                    self.write("        addw    a5,a4,a5", "Suma de operandos")
                 else:  # '-'
-                    self.write("        subw    a5,a4,a5")
+                    self.write("        subw    a5,a4,a5", "Resta de operandos")
             else:  # mulop
                 if expr[1] == '*':
-                    self.write("        mulw    a5,a4,a5")
+                    self.write("        mulw    a5,a4,a5", "Multiplicación de operandos")
                 else:  # '/'
-                    self.write("        divw    a5,a4,a5")
+                    self.write("        divw    a5,a4,a5", "División de operandos")
         
         elif expr_type == 'relop':
             # Generate left operand
             self.generate_expression(expr[2])
-            self.write("        mv      a4,a5")
+            self.write("        mv      a4,a5", "Guardar primer operando")
             
             # Generate right operand
             self.generate_expression(expr[3])
             
             # Compare based on operator using RV64I instructions
             if expr[1] == '<':
-                self.write("        slt     a5,a4,a5")
+                self.write("        slt     a5,a4,a5", "Comparación menor que")
             elif expr[1] == '<=':
-                self.write("        slt     t0,a5,a4")
-                self.write("        xori    a5,t0,1")
+                self.write("        slt     t0,a5,a4", "Comparación menor o igual que")
+                self.write("        xori    a5,t0,1", "Invertir resultado")
             elif expr[1] == '>':
-                self.write("        slt     a5,a5,a4")
+                self.write("        slt     a5,a5,a4", "Comparación mayor que")
             elif expr[1] == '>=':
-                self.write("        slt     t0,a4,a5")
-                self.write("        xori    a5,t0,1")
+                self.write("        slt     t0,a4,a5", "Comparación mayor o igual que")
+                self.write("        xori    a5,t0,1", "Invertir resultado")
             elif expr[1] == '==':
-                self.write("        sub     t0,a4,a5")
-                self.write("        sltiu   a5,t0,1")
+                self.write("        sub     t0,a4,a5", "Comparación igual que")
+                self.write("        sltiu   a5,t0,1", "Convertir resultado a booleano")
             elif expr[1] == '!=':
-                self.write("        sub     t0,a4,a5")
-                self.write("        sltu    a5,zero,t0")
+                self.write("        sub     t0,a4,a5", "Comparación diferente que")
+                self.write("        sltu    a5,zero,t0", "Convertir resultado a booleano")
 
 # Test the code generator
 if __name__ == '__main__':
