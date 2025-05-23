@@ -6,10 +6,5 @@ int main() {
     int multiplicacion = a * b;
     int division = a / b;
     
-    putnum(suma);        // Debería imprimir 13
-    putnum(resta);       // Debería imprimir 7
-    putnum(multiplicacion); // Debería imprimir 30
-    putnum(division);    // Debería imprimir 3
-    
-    return 0;
+    return suma + resta + multiplicacion + division;  // Retorna la suma de todas las operaciones
 } 

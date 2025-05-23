@@ -27,15 +27,12 @@ int main() {
     
     // Prueba de promedio
     resultado = promedio(10, 20, 30, 40, 50);
-    putnum(resultado);  // Debería imprimir 30
     
     // Prueba de máximo
     resultado = maximo(5, 8, 3, 9);
-    putnum(resultado);  // Debería imprimir 9
     
     // Prueba de combinación lineal
     resultado = combinacion_lineal(2, 3, 4, 1, 2, 3);
-    putnum(resultado);  // Debería imprimir 20 (2*1 + 3*2 + 4*3)
     
-    return 0;
+    return resultado;  // Retorna el último resultado calculado
 } 

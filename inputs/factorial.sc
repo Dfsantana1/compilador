@@ -8,6 +8,5 @@ int factorial(int n) {
 int main() {
     int n = 5;
     int result = factorial(n);
-    putnum(result);  // Debería imprimir 120
-    return 0;
+ return result;
 } 

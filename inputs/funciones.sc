@@ -10,5 +10,5 @@ int main() {
     int a = 3;
     int b = 4;
     int resultado = suma_cuadrados(a, b);
-  return resultado;
+    return resultado;  // Retorna 25 (3² + 4²)
 } 
