@@ -152,6 +152,37 @@ class CodeGenerator:
             self.generate_statement(stmt[2])
             self.write(f"        j       {start_label}", f"Salto a {start_label}")
             self.write(f"{end_label}:", "Fin de la sección while")
+            
+        elif stmt_type == 'for_stmt':
+            init = stmt[1]
+            condition = stmt[2]
+            update = stmt[3]
+            body = stmt[4]
+            
+            start_label = self.get_new_label()
+            end_label = self.get_new_label()
+            
+            # Generate initialization
+            self.generate_statement(init)
+            
+            # Generate start of loop
+            self.write(f"{start_label}:", f"Inicio de la sección for")
+            
+            # Generate condition
+            self.generate_statement(condition)
+            self.write("        sext.w  a4,a5", "Extender a 64 bits")
+            self.write("        li      a5,0", "Cargar 0 en a5")
+            self.write(f"        ble     a4,a5,{end_label}", f"Comparar y saltar a {end_label} si a4 <= a5")
+            
+            # Generate body
+            self.generate_statement(body)
+            
+            # Generate update
+            self.generate_expression(update)
+            
+            # Jump back to start
+            self.write(f"        j       {start_label}", f"Salto a {start_label}")
+            self.write(f"{end_label}:", "Fin de la sección for")
 
     def generate_expression(self, expr):
         if not isinstance(expr, tuple):

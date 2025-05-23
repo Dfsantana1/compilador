@@ -176,18 +176,31 @@ class SemanticAnalyzer:
         condition = stmt[2]
         update = stmt[3]
         body = stmt[4]
-        
-        # Analyze initialization
-        self.analyze_statement(init)
-        
-        # Check condition type
-        cond_type = self.get_expression_type(condition)
-        if cond_type != 'int':
+
+        # Analizar inicialización: puede ser declaración o statement
+        if isinstance(init, tuple) and (init[0] == 'var_declaration' or init[0] == 'var_declaration_init'):
+            self.analyze_declaration(init)
+        else:
+            self.analyze_statement(init)
+
+        # Analizar condición (puede ser statement vacío)
+        cond_type = None
+        if isinstance(condition, tuple) and condition[0] == 'expression_stmt':
+            if len(condition) > 1 and condition[1] is not None:
+                cond_type = self.get_expression_type(condition[1])
+        elif condition is not None:
+            cond_type = self.get_expression_type(condition)
+        if cond_type is not None and cond_type != 'int':
             self.errors.append(f"Condition must be of type 'int', got {cond_type}")
-            
-        # Analyze body and update
+
+        # Analizar cuerpo y actualización
         self.analyze_statement(body)
-        self.analyze_statement(update)
+        if update is not None:
+            if isinstance(update, tuple) and update[0] == 'expression_stmt':
+                if len(update) > 1 and update[1] is not None:
+                    self.get_expression_type(update[1])
+            else:
+                self.analyze_statement(update)
 
     def get_expression_type(self, expr):
         if isinstance(expr, tuple):

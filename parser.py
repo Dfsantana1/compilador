@@ -83,7 +83,8 @@ def p_statement(p):
                 | compound_stmt
                 | return_stmt
                 | if_stmt
-                | while_stmt'''
+                | while_stmt
+                | for_stmt'''
     p[0] = p[1]
 
 def p_expression_stmt(p):
@@ -113,6 +114,14 @@ def p_if_stmt(p):
 def p_while_stmt(p):
     '''while_stmt : WHILE LPAREN expression RPAREN statement'''
     p[0] = ('while_stmt', p[3], p[5])
+
+def p_for_stmt(p):
+    '''for_stmt : FOR LPAREN var_declaration expression_stmt expression RPAREN statement
+                | FOR LPAREN expression_stmt expression_stmt expression RPAREN statement'''
+    if len(p) == 8:
+        p[0] = ('for_stmt', p[3], p[4], p[5], p[7])
+    else:
+        p[0] = ('for_stmt', p[3], p[4], p[5], p[7])
 
 def p_expression(p):
     '''expression : var ASSIGN expression
