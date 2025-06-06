@@ -182,7 +182,8 @@ def p_factor(p):
     '''factor : LPAREN expression RPAREN
               | var
               | call
-              | NUMBER'''
+              | NUMBER
+              | CHAR_LITERAL'''
     if len(p) == 4:
         p[0] = p[2]
     else:
