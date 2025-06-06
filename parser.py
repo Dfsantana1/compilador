@@ -25,7 +25,7 @@ def p_var_declaration(p):
     if len(p) == 4:
         p[0] = ('var_declaration', p[1], p[2])
     else:
-        p[0] = ('var_declaration_init', p[1], p[2], p[4])
+        p[0] = ('var_declaration', p[1], p[2], p[4])
 
 def p_type_specifier(p):
     '''type_specifier : INT
@@ -41,7 +41,9 @@ def p_params(p):
     '''params : param_list
               | VOID
               | empty'''
-    if p[1] == 'void' or p[1] is None:
+    if p[1] == 'void':
+        p[0] = []
+    elif p[1] is None:
         p[0] = []
     else:
         p[0] = p[1]
@@ -82,9 +84,7 @@ def p_statement(p):
     '''statement : expression_stmt
                 | compound_stmt
                 | return_stmt
-                | if_stmt
-                | while_stmt
-                | for_stmt'''
+                | if_stmt'''
     p[0] = p[1]
 
 def p_expression_stmt(p):
@@ -109,84 +109,88 @@ def p_if_stmt(p):
     if len(p) == 6:
         p[0] = ('if_stmt', p[3], p[5])
     else:
-        p[0] = ('if_stmt', p[3], p[5], p[7])
-
-def p_while_stmt(p):
-    '''while_stmt : WHILE LPAREN expression RPAREN statement'''
-    p[0] = ('while_stmt', p[3], p[5])
-
-def p_for_stmt(p):
-    '''for_stmt : FOR LPAREN var_declaration expression_stmt expression RPAREN statement
-                | FOR LPAREN expression_stmt expression_stmt expression RPAREN statement'''
-    if len(p) == 8:
-        p[0] = ('for_stmt', p[3], p[4], p[5], p[7])
-    else:
-        p[0] = ('for_stmt', p[3], p[4], p[5], p[7])
+        p[0] = ('if_else_stmt', p[3], p[5], p[7])
 
 def p_expression(p):
     '''expression : var ASSIGN expression
-                 | simple_expression'''
+                 | logical_or_expression'''
     if len(p) == 4:
         p[0] = ('assign', p[1], p[3])
     else:
         p[0] = p[1]
 
-def p_var(p):
-    '''var : ID'''
-    p[0] = ('var', p[1])
+def p_logical_or_expression(p):
+    '''logical_or_expression : logical_or_expression OR logical_and_expression
+                            | logical_and_expression'''
+    if len(p) == 4:
+        p[0] = ('or', p[1], p[3])
+    else:
+        p[0] = p[1]
 
-def p_simple_expression(p):
-    '''simple_expression : additive_expression relop additive_expression
-                        | additive_expression'''
+def p_logical_and_expression(p):
+    '''logical_and_expression : logical_and_expression AND equality_expression
+                             | equality_expression'''
+    if len(p) == 4:
+        p[0] = ('and', p[1], p[3])
+    else:
+        p[0] = p[1]
+
+def p_equality_expression(p):
+    '''equality_expression : equality_expression EQ relational_expression
+                          | equality_expression NE relational_expression
+                          | relational_expression'''
     if len(p) == 4:
         p[0] = ('relop', p[2], p[1], p[3])
     else:
         p[0] = p[1]
 
-def p_relop(p):
-    '''relop : LE
-             | LT
-             | GT
-             | GE
-             | EQ
-             | NE'''
-    p[0] = p[1]
+def p_relational_expression(p):
+    '''relational_expression : relational_expression LT additive_expression
+                            | relational_expression LE additive_expression
+                            | relational_expression GT additive_expression
+                            | relational_expression GE additive_expression
+                            | additive_expression'''
+    if len(p) == 4:
+        p[0] = ('relop', p[2], p[1], p[3])
+    else:
+        p[0] = p[1]
 
 def p_additive_expression(p):
-    '''additive_expression : additive_expression addop term
-                          | term'''
+    '''additive_expression : additive_expression PLUS multiplicative_expression
+                          | additive_expression MINUS multiplicative_expression
+                          | multiplicative_expression'''
     if len(p) == 4:
         p[0] = ('addop', p[2], p[1], p[3])
     else:
         p[0] = p[1]
 
-def p_addop(p):
-    '''addop : PLUS
-             | MINUS'''
-    p[0] = p[1]
-
-def p_term(p):
-    '''term : term mulop factor
-            | factor'''
+def p_multiplicative_expression(p):
+    '''multiplicative_expression : multiplicative_expression TIMES unary_expression
+                                | multiplicative_expression DIVIDE unary_expression
+                                | unary_expression'''
     if len(p) == 4:
         p[0] = ('mulop', p[2], p[1], p[3])
     else:
         p[0] = p[1]
 
-def p_mulop(p):
-    '''mulop : TIMES
-             | DIVIDE'''
+def p_unary_expression(p):
+    '''unary_expression : factor'''
     p[0] = p[1]
 
 def p_factor(p):
     '''factor : LPAREN expression RPAREN
               | var
               | call
-              | NUMBER'''
+              | NUMBER
+              | CHAR_LITERAL'''
     if len(p) == 4:
         p[0] = p[2]
     else:
         p[0] = p[1]
+
+def p_var(p):
+    '''var : ID'''
+    p[0] = ('var', p[1])
 
 def p_call(p):
     '''call : ID LPAREN args RPAREN'''
