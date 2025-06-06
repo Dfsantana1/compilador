@@ -209,6 +209,32 @@ def p_empty(p):
     'empty :'
     p[0] = None
 
+# Precedence rules for the arithmetic operators
+precedence = (
+    ('left', 'OR'),
+    ('left', 'AND'),
+    ('left', 'EQ', 'NE'),
+    ('left', 'LT', 'LE', 'GT', 'GE'),
+    ('left', 'PLUS', 'MINUS'),
+    ('left', 'TIMES', 'DIVIDE', 'MODULO'),
+)
+
+def p_expression_binop(p):
+    '''expression : expression PLUS expression
+                  | expression MINUS expression
+                  | expression TIMES expression
+                  | expression DIVIDE expression
+                  | expression MODULO expression
+                  | expression EQ expression
+                  | expression NE expression
+                  | expression LT expression
+                  | expression LE expression
+                  | expression GT expression
+                  | expression GE expression
+                  | expression AND expression
+                  | expression OR expression'''
+    p[0] = ('binop', p[2], p[1], p[3])
+
 # Error handling
 def p_error(p):
     if p:

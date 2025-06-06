@@ -228,6 +228,23 @@ class SemanticAnalyzer:
                 if left_type != 'int' or right_type != 'int':
                     self.errors.append("Arithmetic operators require integer operands")
                 return 'int'
+            elif expr[0] == 'binop':
+                left_type = self.get_expression_type(expr[2])
+                right_type = self.get_expression_type(expr[3])
+                operator = expr[1]
+                
+                if operator in ('&&', '||'):
+                    if left_type != 'int' or right_type != 'int':
+                        self.errors.append("Logical operators require integer operands")
+                    return 'int'
+                elif operator in ('+', '-', '*', '/', '%'):
+                    if left_type != 'int' or right_type != 'int':
+                        self.errors.append("Arithmetic operators require integer operands")
+                    return 'int'
+                elif operator in ('==', '!=', '<', '<=', '>', '>='):
+                    if left_type != 'int' or right_type != 'int':
+                        self.errors.append("Relational operators require integer operands")
+                    return 'int'
             elif expr[0] == 'var':
                 return self.get_var_type(expr)
             elif expr[0] == 'call':

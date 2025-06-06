@@ -196,96 +196,75 @@ class CodeGenerator:
             self.write(f"{end_label}:", "Fin de la sección for")
 
     def generate_expression(self, expr):
-        if not isinstance(expr, tuple):
-            # Handle literal values
-            if isinstance(expr, int):
-                self.write(f"        li      a5,{expr}", f"Cargar constante {expr}")
-            return
-            
-        expr_type = expr[0]
+        if expr is None:
+            return ""
         
-        if expr_type == 'NUMBER':
-            self.write(f"        li      a5,{expr[1]}", f"Cargar constante {expr[1]}")
-        
-        elif expr_type == 'var':
-            var_name = expr[1]
-            if var_name in self.variables:
-                self.write(f"        lw      a5,{self.variables[var_name]}(s0)", f"Cargar variable {var_name}")
-        
-        elif expr_type == 'assign':
-            var = expr[1][1]  # Get variable name from ('var', name)
-            self.generate_expression(expr[2])  # Generate right side
-            if var in self.variables:
-                self.write(f"        sw      a5,{self.variables[var]}(s0)", f"Guardar valor en variable {var}")
-        
-        elif expr_type == 'call':
-            fun_name = expr[1]
-            args = expr[2] if expr[2] else []
-            
-            # Generate code for arguments
-            for i, arg in enumerate(args):
-                self.generate_expression(arg)
-                if i == 0:
-                    # Save first argument in a temporary location
-                    self.write("        sw      a5,0(sp)", "Guardar primer argumento temporalmente")
+        if isinstance(expr, tuple):
+            op = expr[0]
+            if op == 'number':
+                return f"    mov eax, {expr[1]}\n"
+            elif op == 'id':
+                return f"    mov eax, [{expr[1]}]\n"
+            elif op == 'binop':
+                left_code = self.generate_expression(expr[2])
+                right_code = self.generate_expression(expr[3])
+                operator = expr[1]
+                
+                if operator in ('&&', '||'):
+                    # Para operadores lógicos, necesitamos evaluar el lado izquierdo primero
+                    # y luego el derecho solo si es necesario
+                    label_true = f"label_{self.label_counter}"
+                    label_end = f"label_{self.label_counter + 1}"
+                    self.label_counter += 2
+                    
+                    if operator == '&&':
+                        # Para AND, si el izquierdo es falso, el resultado es falso
+                        # Si el izquierdo es verdadero, evaluamos el derecho
+                        return f"""{left_code}
+    cmp eax, 0
+    je {label_end}
+{right_code}
+{label_end}:
+"""
+                    else:  # operator == '||'
+                        # Para OR, si el izquierdo es verdadero, el resultado es verdadero
+                        # Si el izquierdo es falso, evaluamos el derecho
+                        return f"""{left_code}
+    cmp eax, 0
+    jne {label_end}
+{right_code}
+{label_end}:
+"""
                 else:
-                    # Move second argument to a1
-                    self.write("        mv      a1,a5", "Mover segundo argumento a a1")
-            
-            # Move first argument to a0
-            if len(args) > 0:
-                self.write("        lw      a0,0(sp)", "Cargar primer argumento en a0")
-            
-            # Make the call
-            self.write(f"        call    {fun_name}", f"Llamar a función {fun_name}")
-            self.write("        mv      a5,a0", "Guardar resultado de la función")
-        
-        elif expr_type in ['addop', 'mulop']:
-            # Generate left operand
-            self.generate_expression(expr[2])
-            # Save left operand in a temporary register
-            self.write("        mv      a4,a5", "Guardar primer operando")
-            
-            # Generate right operand
-            self.generate_expression(expr[3])
-            
-            # Perform operation based on type and operator
-            if expr_type == 'addop':
-                if expr[1] == '+':
-                    self.write("        add     a5,a4,a5", "Suma de operandos")
-                else:  # '-'
-                    self.write("        sub     a5,a4,a5", "Resta de operandos")
-            else:  # mulop
-                if expr[1] == '*':
-                    self.write("        mul     a5,a4,a5", "Multiplicación de operandos")
-                else:  # '/'
-                    self.write("        div     a5,a4,a5", "División de operandos")
-        
-        elif expr_type == 'relop':
-            # Generate left operand
-            self.generate_expression(expr[2])
-            self.write("        mv      a4,a5", "Guardar primer operando")
-            
-            # Generate right operand
-            self.generate_expression(expr[3])
-            
-            # Compare based on operator using RV32I instructions
-            if expr[1] == '<':
-                self.write("        slt     a5,a4,a5", "Comparación menor que")
-            elif expr[1] == '<=':
-                self.write("        slt     t0,a5,a4", "Comparación menor o igual que")
-                self.write("        xori    a5,t0,1", "Invertir resultado")
-            elif expr[1] == '>':
-                self.write("        slt     a5,a5,a4", "Comparación mayor que")
-            elif expr[1] == '>=':
-                self.write("        slt     t0,a4,a5", "Comparación mayor o igual que")
-                self.write("        xori    a5,t0,1", "Invertir resultado")
-            elif expr[1] == '==':
-                self.write("        sub     t0,a4,a5", "Comparación igual que")
-                self.write("        sltiu   a5,t0,1", "Convertir resultado a booleano")
-            elif expr[1] == '!=':
-                self.write("        sub     t0,a4,a5", "Comparación diferente que")
-                self.write("        sltu    a5,zero,t0", "Convertir resultado a booleano")
+                    # Para otros operadores, evaluamos ambos lados y aplicamos la operación
+                    return f"""{left_code}
+    push eax
+{right_code}
+    pop ebx
+"""
+                    if operator == '+':
+                        return "    add eax, ebx\n"
+                    elif operator == '-':
+                        return "    sub eax, ebx\n"
+                    elif operator == '*':
+                        return "    mul ebx\n"
+                    elif operator == '/':
+                        return "    div ebx\n"
+                    elif operator == '%':
+                        return "    div ebx\n    mov eax, edx\n"  # El residuo queda en edx
+                    elif operator == '==':
+                        return "    cmp eax, ebx\n    sete al\n    movzx eax, al\n"
+                    elif operator == '!=':
+                        return "    cmp eax, ebx\n    setne al\n    movzx eax, al\n"
+                    elif operator == '<':
+                        return "    cmp eax, ebx\n    setl al\n    movzx eax, al\n"
+                    elif operator == '<=':
+                        return "    cmp eax, ebx\n    setle al\n    movzx eax, al\n"
+                    elif operator == '>':
+                        return "    cmp eax, ebx\n    setg al\n    movzx eax, al\n"
+                    elif operator == '>=':
+                        return "    cmp eax, ebx\n    setge al\n    movzx eax, al\n"
+        return ""
 
 # Test the code generator
 if __name__ == '__main__':

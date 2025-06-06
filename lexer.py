@@ -9,6 +9,7 @@ tokens = (
     'MINUS',        # -
     'TIMES',        # *
     'DIVIDE',       # /
+    'MODULO',       # %
     'LPAREN',       # (
     'RPAREN',       # )
     'LBRACE',       # {
@@ -24,6 +25,8 @@ tokens = (
     'GT',           # >
     'GE',           # >=
     'COMMA',        # ,
+    'AND',          # &&
+    'OR',           # ||
 )
 
 # Reserved words
@@ -46,6 +49,7 @@ t_PLUS = r'\+'
 t_MINUS = r'-'
 t_TIMES = r'\*'
 t_DIVIDE = r'/'
+t_MODULO = r'%'
 t_LPAREN = r'\('
 t_RPAREN = r'\)'
 t_LBRACE = r'\{'
@@ -61,6 +65,8 @@ t_LE = r'<='
 t_GT = r'>'
 t_GE = r'>='
 t_COMMA = r','
+t_AND = r'&&'
+t_OR = r'\|\|'
 
 # Regular expression rule for character literals
 def t_CHAR_LITERAL(t):
